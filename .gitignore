@@ -1,0 +1,14 @@
+# Credenciales del firmware (¡nunca subir!)
+firmware/estacion_meteorologica/secrets.h
+
+# Artefactos de compilación Arduino / PlatformIO
+build/
+*.bin
+*.elf
+.pio/
+
+# Sistema / editores
+.DS_Store
+Thumbs.db
+.vscode/
+*.log

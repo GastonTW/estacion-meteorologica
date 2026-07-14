@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0d47a1" />
+  <title>Estación Meteorológica — Antiheladas</title>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="dot" id="conn-dot" title="Conexión"></span>
+      <h1>Estación Antiheladas</h1>
+    </div>
+    <div class="meta">
+      <span id="device-label">estacion-01</span>
+      <span id="last-update">—</span>
+    </div>
+  </header>
+
+  <!-- Banner de estado (semáforo) -->
+  <section id="status-banner" class="status-banner">
+    <div class="status-word" id="status-word">Cargando…</div>
+    <div class="status-plan" id="status-plan">Conectando con la estación…</div>
+  </section>
+
+  <!-- Tiles de valores actuales -->
+  <section class="tiles">
+    <div class="tile"><div class="tile-label">Temperatura</div><div class="tile-value" id="v-temp">—</div><div class="tile-unit">°C</div></div>
+    <div class="tile"><div class="tile-label">Humedad</div><div class="tile-value" id="v-hum">—</div><div class="tile-unit">%</div></div>
+    <div class="tile"><div class="tile-label">Presión</div><div class="tile-value" id="v-pres">—</div><div class="tile-unit">hPa</div></div>
+    <div class="tile"><div class="tile-label">Punto de rocío</div><div class="tile-value" id="v-dew">—</div><div class="tile-unit">°C</div></div>
+    <div class="tile"><div class="tile-label">Mínima estimada</div><div class="tile-value" id="v-min">—</div><div class="tile-unit">°C</div></div>
+    <div class="tile"><div class="tile-label">Riesgo (score)</div><div class="tile-value" id="v-score">—</div><div class="tile-unit">/7</div></div>
+  </section>
+
+  <!-- Estado fenológico -->
+  <section class="feno card">
+    <label for="feno-select">Estado fenológico del cerezo</label>
+    <select id="feno-select"></select>
+    <span class="feno-crit">T crítica ref.: <strong id="feno-crit">—</strong> °C</span>
+  </section>
+
+  <!-- Histórico de temporada -->
+  <section class="card">
+    <div class="range-bar">
+      <span class="range-title">Histórico</span>
+      <div class="range-btns" id="range-btns">
+        <button data-range="24h" class="active">24 h</button>
+        <button data-range="7d">7 días</button>
+        <button data-range="ago">Agosto</button>
+        <button data-range="sep">Septiembre</button>
+        <button data-range="oct">Octubre</button>
+      </div>
+    </div>
+    <div class="chart-wrap"><canvas id="chart-temp"></canvas></div>
+    <div class="chart-wrap"><canvas id="chart-hum"></canvas></div>
+    <div class="chart-wrap"><canvas id="chart-pres"></canvas></div>
+    <p id="hist-empty" class="hist-empty" hidden>Sin datos en este período.</p>
+  </section>
+
+  <footer class="foot">
+    <p>Sistema de aviso — el riego por aspersión se prende <strong>manualmente</strong>.
+       Criterio agronómico: skill-agronomica.</p>
+  </footer>
+
+  <!-- Dependencias (CDN) -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+  <!-- App -->
+  <script src="js/config.js"></script>
+  <script src="js/agronomia.js"></script>
+  <script src="js/supabase-client.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

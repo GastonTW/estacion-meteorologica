@@ -1,0 +1,215 @@
+---
+name: skill-agronomica
+description: Conocimiento agronómico, fórmulas y lógica de decisión para detectar y prevenir heladas en cultivos frutales (especialmente cerezos) usando sensores de temperatura, humedad relativa y presión atmosférica. Usar esta skill siempre que se esté desarrollando firmware para ESP32 u otro microcontrolador de estación meteorológica agrícola, lógica de alertas de helada, cálculo de punto de rocío, tasa de enfriamiento nocturno, índice de riesgo de helada, máquinas de estado de alerta, buffers de series temporales en memoria limitada, o cualquier sistema de monitoreo climático orientado a prevención de heladas. Consultar también para definir umbrales de disparo de alarmas/actuadores (riego antiheladas, ventiladores, calefactores) y estrategias de muestreo de sensores en aplicaciones agronómicas de bajo consumo.
+---
+
+# Skill Agronómica: Detección y Prevención de Heladas en Cerezos
+
+Esta skill contiene el conocimiento de dominio (agronomía + física atmosférica) necesario para programar correctamente la lógica de un sistema embebido de alerta de heladas. El objetivo: que el firmware no solo lea sensores, sino que interprete físicamente lo que está pasando y anticipe el riesgo con horas de margen.
+
+**Definición operativa de helada**: temperatura del aire a la altura del cultivo ≤ 0°C.
+
+---
+
+## 1. Marco conceptual: los dos tipos de helada
+
+La lógica de alerta debe distinguir el tipo de helada, porque cambia la confiabilidad de la predicción y la respuesta recomendada.
+
+| Tipo | Condiciones típicas | Firma en los sensores | Respuesta |
+|---|---|---|---|
+| **Radiativa** (la más común y la que este sistema predice mejor) | Noche despejada, viento calmo, alta presión (anticiclón) | Presión alta y estable, HR baja al atardecer, caída de T brusca y sostenida tras la puesta de sol | Riego por aspersión, ventiladores, calefactores — muy efectivos |
+| **Advectiva** | Entrada de masa de aire frío, suele haber viento | Presión con cambios más marcados, caída de T no ligada a la puesta de sol | Métodos activos poco efectivos; difícil de mitigar |
+
+**Regla práctica para el firmware**: si la presión está alta y estable (variación < 2 hPa en 6 h) y la HR cae fuerte después del atardecer, subir la confianza de que es helada radiativa (la que este sistema puede predecir con buena anticipación).
+
+---
+
+## 2. Variables derivadas (no uses solo las lecturas crudas)
+
+### 2.1 Punto de rocío (Td) — Magnus-Tetens
+
+```
+γ(T, HR) = (a·T)/(b+T) + ln(HR/100)
+Td = (b·γ)/(a-γ)
+```
+Constantes: `a = 17.27`, `b = 237.7` (°C)
+
+Implementación en C (Arduino/ESP-IDF):
+
+```cpp
+float calcularPuntoRocio(float tempC, float humedadRel) {
+    const float a = 17.27f;
+    const float b = 237.7f;
+    float gamma = (a * tempC) / (b + tempC) + logf(humedadRel / 100.0f);
+    return (b * gamma) / (a - gamma);
+}
+```
+
+### 2.2 Depresión del punto de rocío
+
+```
+DPR = T - Td
+```
+
+- DPR pequeña (aire casi saturado) + T bajando → alto riesgo de helada radiativa fuerte, porque el aire se satura rápido.
+- DPR grande → hay más "colchón" de humedad antes de llegar a condiciones críticas, pero ojo: no reduce el riesgo de helada en sí (la helada depende de T, no de HR), solo indica qué tan seco está el aire.
+
+```cpp
+float depresionPuntoRocio(float tempC, float td) {
+    return tempC - td;
+}
+```
+
+### 2.3 Tasa de enfriamiento y proyección de mínima nocturna
+
+Este es el cálculo con más valor práctico: te da alertas con horas de anticipación en vez de reaccionar cuando ya está helando.
+
+Procedimiento:
+1. A partir de la puesta de sol (o de un horario fijo configurable, ej. 20:00), tomar mediciones de T cada 15-30 min.
+2. Calcular la pendiente de enfriamiento (°C/hora) durante las primeras 2-4 horas de la noche.
+3. Extrapolar linealmente hasta la hora de mínima esperada (generalmente pre-amanecer).
+
+```
+tasa_enfriamiento = (T_inicio - T_actual) / horas_transcurridas
+T_minima_estimada = T_actual - (tasa_enfriamiento × horas_hasta_amanecer)
+```
+
+```cpp
+float estimarTemperaturaMinima(float tActual, float tasaEnfriamientoPorHora, float horasHastaAmanecer) {
+    return tActual - (tasaEnfriamientoPorHora * horasHastaAmanecer);
+}
+
+// Calcular tasa a partir de dos muestras separadas en el tiempo
+float calcularTasaEnfriamiento(float tInicio, float tActual, float horasTranscurridas) {
+    if (horasTranscurridas <= 0) return 0;
+    return (tInicio - tActual) / horasTranscurridas;
+}
+```
+
+**Importante**: la tasa de enfriamiento no es constante toda la noche (suele ser más rápida al principio y se amortigua después). Para mayor precisión, recalcular la tasa con una ventana móvil (últimas N muestras) en vez de un solo par de puntos fijo.
+
+### 2.4 Media móvil / suavizado (para ruido de sensores)
+
+Los sensores de bajo costo tienen ruido. Antes de usar un valor en la lógica de decisión, suavizarlo:
+
+```cpp
+#define VENTANA 6  // ej: 6 muestras cada 5 min = 30 min de ventana
+
+float bufferTemp[VENTANA];
+int idx = 0;
+
+float mediaMovil(float nuevaLectura) {
+    bufferTemp[idx] = nuevaLectura;
+    idx = (idx + 1) % VENTANA;
+    float suma = 0;
+    for (int i = 0; i < VENTANA; i++) suma += bufferTemp[i];
+    return suma / VENTANA;
+}
+```
+
+---
+
+## 3. Índice de riesgo compuesto
+
+Combina las tres variables en un score que dispara los niveles de alerta. Pensado para poder tunearse con constantes fácilmente editables en el firmware.
+
+| Variable | Condición de riesgo | Aporte al score |
+|---|---|---|
+| Presión atmosférica | Alta y estable (>1015 hPa, ΔP < 2 hPa en 6h) | +1 (favorece helada radiativa) |
+| Humedad relativa | Baja al atardecer (<60%) | +1 (cielo despejado, favorece radiación) |
+| Tasa de enfriamiento | > 1.5–2°C/hora en primeras horas de noche | +2 (señal más fuerte y directa) |
+| Punto de rocío | Cercano o por debajo de 0°C | +2 (alerta crítica) |
+| Temperatura actual | < 3°C | +1 |
+| Temperatura actual | ≤ 0°C | Alarma inmediata, no depende del score |
+
+```cpp
+struct LecturaSensores {
+    float temperatura;
+    float humedad;
+    float presion;
+    float puntoRocio;
+    float tasaEnfriamiento;
+};
+
+int calcularIndiceRiesgo(LecturaSensores &l, float deltaPresion6h) {
+    int score = 0;
+    if (l.presion > 1015.0f && fabs(deltaPresion6h) < 2.0f) score += 1;
+    if (l.humedad < 60.0f) score += 1;
+    if (l.tasaEnfriamiento > 1.5f) score += 2;
+    if (l.puntoRocio <= 0.0f) score += 2;
+    if (l.temperatura < 3.0f) score += 1;
+    return score;
+}
+```
+
+Estos umbrales (1015 hPa, 60% HR, 1.5°C/h, etc.) son valores de referencia general. **Deben calibrarse con datos reales de la zona/microclima** una vez que el sistema junte una temporada de historial — dejalos como constantes fácilmente ajustables (o mejor, en una estructura de configuración cargable), no hardcodeadas en el medio de la lógica.
+
+---
+
+## 4. Máquina de estados recomendada para el firmware
+
+```
+MONITOREO_NORMAL
+   │  (score >= 3 O T_minima_estimada < 3°C)
+   ▼
+ALERTA_TEMPRANA        → notificar, no accionar (da tiempo a preparar equipos)
+   │  (score >= 5 O T_actual < 2°C)
+   ▼
+ALERTA_CRITICA         → activar métodos de protección (riego/ventiladores/calefactores)
+   │  (T_actual <= 0°C)
+   ▼
+HELADA_ACTIVA          → mantener protección activa, log de duración e intensidad
+   │  (T_actual > 2°C sostenido por >30 min)
+   ▼
+MONITOREO_NORMAL       (reset)
+```
+
+Puntos clave para la implementación:
+- Usar **histéresis** en las transiciones (no volver a MONITOREO_NORMAL apenas la T sube un poco; exigir que se sostenga arriba del umbral por un tiempo mínimo) para evitar oscilar entre estados con lecturas ruidosas.
+- Cada transición de estado debe loguearse con timestamp para poder reconstruir el evento después (duración de la helada, T mínima real vs estimada, etc.) y así ir calibrando los umbrales con el tiempo.
+- La activación de actuadores (ALERTA_CRITICA) es la acción más costosa (agua, energía) → conviene que dispare por la combinación de score + tasa de enfriamiento, no por una sola variable aislada.
+
+---
+
+## 5. Consideraciones de hardware / muestreo para ESP32
+
+- **Frecuencia de muestreo**: cada 5–10 min es suficiente; no se gana precisión relevante con más resolución y se gasta batería/energía innecesariamente.
+- **Ubicación del sensor de temperatura**: a la altura de brotes/fruta, no a 2 m como una estación meteorológica estándar — la helada se define en el microclima del cultivo, no en el aire general.
+- **Durante la noche crítica** (cuando el sistema está en ALERTA_TEMPRANA o superior), conviene subir la frecuencia de muestreo (ej. cada 2–5 min) para afinar la tasa de enfriamiento y detectar más rápido si empieza a helar. Fuera de esas ventanas, se puede bajar frecuencia y usar deep sleep para ahorrar batería si el ESP32 es a batería/solar.
+- **Buffer circular en RAM**: con la RAM limitada del ESP32 no hace falta guardar toda la noche en memoria; alcanza con un buffer circular de las últimas ~2-4 horas para calcular la tasa de enfriamiento y la media móvil. El historial completo (si se quiere) conviene mandarlo a SD/flash o a un backend, no mantenerlo todo en RAM.
+- **Sensor faltante que más mejora el modelo**: un anemómetro. El viento es la variable que más cambia el panorama — con viento, el aire se mezcla y el riesgo de helada radiativa baja fuerte aunque haga frío. Si el proyecto lo permite, es el próximo sensor a agregar.
+
+---
+
+## 6. Ejemplo de ciclo de lectura integrado (pseudocódigo Arduino)
+
+```cpp
+void loop() {
+    LecturaSensores actual;
+    actual.temperatura = mediaMovil(leerTemperatura());
+    actual.humedad = leerHumedad();
+    actual.presion = leerPresion();
+    actual.puntoRocio = calcularPuntoRocio(actual.temperatura, actual.humedad);
+
+    actual.tasaEnfriamiento = calcularTasaEnfriamiento(
+        tempAlAtardecer, actual.temperatura, horasDesdeAtardecer()
+    );
+
+    float tMinimaEstimada = estimarTemperaturaMinima(
+        actual.temperatura, actual.tasaEnfriamiento, horasHastaAmanecer()
+    );
+
+    int score = calcularIndiceRiesgo(actual, deltaPresion6h());
+
+    actualizarMaquinaEstados(actual, score, tMinimaEstimada);
+
+    delay(intervaloMuestreoActual()); // varía según estado (ver sección 5)
+}
+```
+
+---
+
+## 7. Notas para calibración futura
+
+- Guardar cada evento de helada real (inicio, duración, T mínima real, score que tenía el sistema en ese momento) permite comparar la predicción contra lo que efectivamente pasó y ajustar los umbrales/pesos de la sección 3.
+- Si se junta una temporada completa de datos, vale la pena migrar de la extrapolación lineal simple a un modelo de regresión con más features (hora, presión, humedad, tendencia) corrido en un backend, y que el ESP32 solo reciba umbrales/parámetros actualizados — evitando meter un modelo pesado en el microcontrolador.

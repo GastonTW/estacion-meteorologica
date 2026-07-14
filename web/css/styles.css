@@ -1,0 +1,109 @@
+/* ===========================================================================
+   Dashboard estación antiheladas — mobile-first, responsive
+   =========================================================================== */
+:root {
+  --bg: #0f1720;
+  --card: #172230;
+  --card-2: #1e2b3a;
+  --text: #e8edf2;
+  --muted: #9fb0c0;
+  --accent: #0d47a1;
+  --ok: #2e7d32;
+  --warn: #f9a825;
+  --crit: #ef6c00;
+  --danger: #c62828;
+  --radius: 14px;
+  font-size: 16px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.4;
+  padding-bottom: 2rem;
+}
+
+/* ---- Topbar ---- */
+.topbar {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 1rem; padding: 0.9rem 1rem;
+  background: var(--accent); color: #fff;
+  position: sticky; top: 0; z-index: 10;
+}
+.brand { display: flex; align-items: center; gap: 0.6rem; }
+.brand h1 { font-size: 1.1rem; font-weight: 600; }
+.meta { text-align: right; font-size: 0.78rem; opacity: 0.9; display: flex; flex-direction: column; }
+.dot {
+  width: 12px; height: 12px; border-radius: 50%;
+  background: var(--muted); display: inline-block;
+  box-shadow: 0 0 0 0 rgba(46,125,50,0.6);
+}
+.dot.online { background: #7cf29b; animation: pulse 2s infinite; }
+.dot.offline { background: #ff6b6b; }
+@keyframes pulse {
+  0% { box-shadow: 0 0 0 0 rgba(124,242,155,0.5); }
+  70% { box-shadow: 0 0 0 8px rgba(124,242,155,0); }
+  100% { box-shadow: 0 0 0 0 rgba(124,242,155,0); }
+}
+
+/* ---- Banner de estado ---- */
+.status-banner {
+  margin: 1rem; padding: 1.4rem 1.2rem; border-radius: var(--radius);
+  background: var(--ok); color: #fff; text-align: center;
+  transition: background 0.4s ease;
+}
+.status-word { font-size: 1.7rem; font-weight: 800; letter-spacing: 0.3px; }
+.status-plan { margin-top: 0.6rem; font-size: 1rem; opacity: 0.97; }
+
+/* ---- Tiles ---- */
+.tiles {
+  display: grid; grid-template-columns: repeat(2, 1fr);
+  gap: 0.7rem; margin: 0 1rem;
+}
+.tile {
+  background: var(--card); border-radius: var(--radius);
+  padding: 0.9rem; text-align: center;
+}
+.tile-label { font-size: 0.78rem; color: var(--muted); }
+.tile-value { font-size: 2rem; font-weight: 700; line-height: 1.1; margin: 0.15rem 0; }
+.tile-unit { font-size: 0.8rem; color: var(--muted); }
+
+/* ---- Cards ---- */
+.card {
+  background: var(--card); border-radius: var(--radius);
+  margin: 1rem; padding: 1rem;
+}
+.feno { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; }
+.feno label { font-size: 0.9rem; color: var(--muted); }
+.feno select {
+  background: var(--card-2); color: var(--text); border: 1px solid #2c3e50;
+  border-radius: 8px; padding: 0.5rem; font-size: 0.95rem; flex: 1; min-width: 180px;
+}
+.feno-crit { font-size: 0.85rem; color: var(--muted); }
+
+/* ---- Rango histórico ---- */
+.range-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem; margin-bottom: 0.8rem; }
+.range-title { font-weight: 600; }
+.range-btns { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.range-btns button {
+  background: var(--card-2); color: var(--muted);
+  border: 1px solid #2c3e50; border-radius: 999px;
+  padding: 0.35rem 0.75rem; font-size: 0.82rem; cursor: pointer;
+}
+.range-btns button.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+.chart-wrap { position: relative; height: 220px; margin-bottom: 1rem; }
+.hist-empty { color: var(--muted); text-align: center; padding: 1rem; }
+
+.foot { color: var(--muted); font-size: 0.8rem; text-align: center; padding: 0 1.5rem; }
+
+/* ---- Desktop ---- */
+@media (min-width: 760px) {
+  .tiles { grid-template-columns: repeat(3, 1fr); }
+  .brand h1 { font-size: 1.3rem; }
+  .status-word { font-size: 2.1rem; }
+  .chart-wrap { height: 280px; }
+}
