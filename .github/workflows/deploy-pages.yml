@@ -1,0 +1,47 @@
+name: Deploy dashboard to GitHub Pages
+
+# Publica la carpeta web/ como sitio estático en GitHub Pages.
+# Requisito (una sola vez): Settings → Pages → "Build and deployment" → Source = "GitHub Actions".
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "web/**"
+      - ".github/workflows/deploy-pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Un solo deploy a la vez; no cancela uno en curso para no dejar el sitio a medias.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configurar Pages
+        uses: actions/configure-pages@v5
+        with:
+          # Intenta habilitar Pages solo (si la cuenta lo permite); si no, se hace a mano en Settings.
+          enablement: true
+
+      - name: Subir la carpeta web/ como artefacto
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: web
+
+      - name: Deploy a GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
