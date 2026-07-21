@@ -52,11 +52,11 @@ function poblarFenologia(seleccion) {
     sel.appendChild(opt);
   });
   $("feno-crit").textContent = fenologiaInfo(seleccion).t10;
-  sel.onchange = async () => {
-    const id = Number(sel.value);
-    $("feno-crit").textContent = fenologiaInfo(id).t10;
-    try { await DB.setFenologia(id); } catch (e) { console.warn("No se pudo guardar fenología:", e.message); }
-  };
+  // Solo lectura: el estado fenológico se configura desde Supabase Studio.
+  // La policy de UPDATE anon se quitó por seguridad (repo y anon key públicos),
+  // así que el dashboard solo muestra el estado, no lo escribe.
+  sel.disabled = true;
+  sel.title = "El estado fenológico se configura desde Supabase (solo lectura acá).";
 }
 
 // ---------------------------------------------------------------------------
