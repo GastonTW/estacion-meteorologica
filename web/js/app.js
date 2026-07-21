@@ -1,7 +1,8 @@
 // ============================================================================
 //  app.js  ─  Render del dashboard (tiles, banner de estado, gráficas)
 // ============================================================================
-const { estadoInfo, FENOLOGIA, fenologiaInfo } = window.AGRO;
+// estadoInfo, FENOLOGIA y fenologiaInfo ya son globales (definidas en agronomia.js,
+// que carga antes). No re-declararlas acá: dispara "Identifier already declared".
 const cfg = window.APP_CONFIG;
 
 const $ = (id) => document.getElementById(id);
