@@ -12,6 +12,16 @@
 --   ver la nota al pie para endurecerlo.
 -- ============================================================================
 
+-- ---- GRANTs de tabla (capa previa a RLS) ----------------------------------
+--  RLS decide QUÉ FILAS puede tocar cada rol; el GRANT decide si el rol puede
+--  operar sobre la tabla. Sin estos GRANT, el rol anon recibe
+--  "permission denied for table ..." (código 42501) antes de evaluar RLS.
+--  Algunos proyectos Supabase no otorgan estos permisos al rol anon por
+--  defecto, así que los hacemos explícitos.
+grant usage on schema public to anon;
+grant select, insert on public.readings to anon;
+grant select on public.config to anon;   -- solo lectura: el update quedó fuera (ver config)
+
 -- ---- readings --------------------------------------------------------------
 alter table public.readings enable row level security;
 
@@ -35,13 +45,12 @@ create policy "config_select_anon"
   to anon
   using (true);
 
--- Actualizar el estado fenológico desde el dashboard (anon).
--- Si preferís que solo se cambie desde Supabase Studio, borrá esta política.
-create policy "config_update_anon"
-  on public.config for update
-  to anon
-  using (true)
-  with check (true);
+-- NOTA: se quitó la política de UPDATE anon sobre config (endurecimiento).
+--   El repo es público y la anon key también, así que permitir UPDATE dejaba
+--   que cualquiera cambiara el estado fenológico. Ahora ese valor solo se
+--   modifica desde Supabase Studio. Si algún día querés volver a editarlo desde
+--   el dashboard, recreá la política de update + el grant, o mejor pasá a un
+--   flujo autenticado (ver "ENDURECER" al pie).
 
 -- ============================================================================
 --  ENDURECER (opcional, recomendado si el proyecto crece):
