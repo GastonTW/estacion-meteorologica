@@ -52,11 +52,42 @@ function poblarFenologia(seleccion) {
     sel.appendChild(opt);
   });
   $("feno-crit").textContent = fenologiaInfo(seleccion).t10;
-  // Solo lectura: el estado fenológico se configura desde Supabase Studio.
-  // La policy de UPDATE anon se quitó por seguridad (repo y anon key públicos),
-  // así que el dashboard solo muestra el estado, no lo escribe.
-  sel.disabled = true;
-  sel.title = "El estado fenológico se configura desde Supabase (solo lectura acá).";
+}
+
+// El selector es editable: la policy de UPDATE anon sobre `config` está
+// habilitada a propósito (proyecto privado, lo cambia el encargado del campo).
+// Se llama una sola vez, después de poblarFenologia, para no apilar listeners.
+function wireFenologia() {
+  const sel = $("feno-select");
+  const msg = $("feno-msg");
+  let guardado = sel.value;   // último valor confirmado en la base
+
+  const aviso = (texto, clase) => {
+    msg.textContent = texto;
+    msg.className = "feno-msg" + (clase ? " " + clase : "");
+  };
+
+  sel.addEventListener("change", async () => {
+    const id = Number(sel.value);
+    $("feno-crit").textContent = fenologiaInfo(id).t10;   // feedback inmediato
+    sel.disabled = true;
+    aviso("Guardando…");
+
+    try {
+      await DB.setFenologia(id);
+      guardado = sel.value;
+      aviso("✔ Guardado", "ok");
+      setTimeout(() => { if (msg.textContent === "✔ Guardado") aviso(""); }, 3000);
+    } catch (e) {
+      console.error(e);
+      // Revierte a lo que sí está en la base para no mostrar una T crítica falsa.
+      sel.value = guardado;
+      $("feno-crit").textContent = fenologiaInfo(Number(guardado)).t10;
+      aviso("No se pudo guardar", "err");
+    } finally {
+      sel.disabled = false;
+    }
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -185,6 +216,7 @@ async function init() {
   let feno = 5;
   try { feno = await DB.getFenologia(); } catch (e) { console.warn("Config no disponible:", e.message); }
   poblarFenologia(feno);
+  wireFenologia();
 
   // Estado actual
   try { renderActual(await DB.ultima()); }

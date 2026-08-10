@@ -5,11 +5,12 @@
 --
 --  Modelo de seguridad (proyecto agrícola personal):
 --   - La ESP32 usa la anon key para INSERTAR lecturas.
---   - El dashboard usa la anon key para LEER (select).
+--   - El dashboard usa la anon key para LEER (select) y para EDITAR el estado
+--     fenológico en `config` (update).
 --   La anon key es pública por diseño; RLS limita qué puede hacer.
 --   Con estas políticas, un tercero con la anon key podría insertar lecturas
---   basura o leer los datos. Para un campo propio es aceptable; si te preocupa,
---   ver la nota al pie para endurecerlo.
+--   basura, leer los datos o cambiar el estado fenológico. Para un campo propio
+--   es aceptable; si te preocupa, ver la nota al pie para endurecerlo.
 -- ============================================================================
 
 -- ---- GRANTs de tabla (capa previa a RLS) ----------------------------------
@@ -20,7 +21,7 @@
 --  defecto, así que los hacemos explícitos.
 grant usage on schema public to anon;
 grant select, insert on public.readings to anon;
-grant select on public.config to anon;   -- solo lectura: el update quedó fuera (ver config)
+grant select, update on public.config to anon;   -- el dashboard edita el estado fenológico
 
 -- ---- readings --------------------------------------------------------------
 alter table public.readings enable row level security;
@@ -45,12 +46,18 @@ create policy "config_select_anon"
   to anon
   using (true);
 
--- NOTA: se quitó la política de UPDATE anon sobre config (endurecimiento).
---   El repo es público y la anon key también, así que permitir UPDATE dejaba
---   que cualquiera cambiara el estado fenológico. Ahora ese valor solo se
---   modifica desde Supabase Studio. Si algún día querés volver a editarlo desde
---   el dashboard, recreá la política de update + el grant, o mejor pasá a un
---   flujo autenticado (ver "ENDURECER" al pie).
+-- Edición del estado fenológico desde el dashboard.
+--   Decisión tomada a conciencia: el proyecto es privado y el único que lo
+--   cambia es el encargado del campo, así que no se pide login. Cualquiera que
+--   conozca la URL del dashboard puede editar este valor. Si el día de mañana
+--   la URL se comparte, pasá a un flujo autenticado (ver "ENDURECER" al pie).
+--   El `with check` acota el daño de un valor inválido: la escala fenológica
+--   es 0..5 (skill §2) y fuera de ese rango la T crítica no tendría sentido.
+create policy "config_update_anon"
+  on public.config for update
+  to anon
+  using (true)
+  with check (estado_fenologico between 0 and 5);
 
 -- ============================================================================
 --  ENDURECER (opcional, recomendado si el proyecto crece):

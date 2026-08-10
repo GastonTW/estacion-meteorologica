@@ -58,7 +58,10 @@ Para validar la máquina de estados y el push **sin** una helada real:
 - **Tiempo real:** al llegar una muestra nueva, los tiles y el banner se actualizan solos y el
   puntito de conexión queda verde (online).
 - **Histórico:** probá los botones 24 h / 7 días / Agosto-Sep-Oct; deben dibujarse las 3 gráficas.
-- **Fenología:** cambiá el selector; la "T crítica ref." cambia y (si la política lo permite) se guarda.
+- **Fenología:** cambiá el selector; la "T crítica ref." cambia al instante y aparece "✔ Guardado".
+  Recargá la página: el valor elegido tiene que persistir (se guardó en `config`). Si sale
+  "No se pudo guardar", el selector vuelve solo al valor anterior — revisá que `policies.sql`
+  esté corrido con el grant de `update` y la policy `config_update_anon`.
 
 ## Checklist final
 
